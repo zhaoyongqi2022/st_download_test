@@ -4,12 +4,14 @@ import scenariogeneration.xosc as xosc
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from io import BytesIO
+import zipfile
 
 # Define the Scenario class as provided
 class Scenario(sg.ScenarioGenerator):
-    def __init__(self):
+    def __init__(self, id):
         super().__init__()
         self.open_scenario_version = 2
+        self.id = id
 
     def scenario(self, **kwargs):
         ### create catalogs
@@ -159,7 +161,7 @@ class Scenario(sg.ScenarioGenerator):
 
         ## create the scenario
         sce = xosc.Scenario(
-            "adapt_speed_example",
+            f"adapt_speed_example_{self.id}",
             "Mandolin",
             paramdec,
             entities=entities,
@@ -173,24 +175,39 @@ class Scenario(sg.ScenarioGenerator):
 # Streamlit app code
 st.title("OpenSCENARIO File Generator")
 
-# Generate the scenario
-scenario = Scenario()
-xosc_scenario = scenario.scenario()
+# Number of scenarios to generate
+num_scenarios = 10
 
-# Convert the scenario to XML
-root_element = xosc_scenario.get_element()
-xml_string = ET.tostring(root_element, encoding='unicode', method='xml')
+# Create a BytesIO buffer for the ZIP file
+zip_buffer = BytesIO()
 
-# Prettify the XML string
-dom = minidom.parseString(xml_string)
-pretty_xml_string = dom.toprettyxml()
+# Create a ZIP file
+with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+    for i in range(num_scenarios):
+        # Generate the scenario
+        scenario = Scenario(id=i)
+        xosc_scenario = scenario.scenario()
+
+        # Convert the scenario to XML
+        root_element = xosc_scenario.get_element()
+        xml_string = ET.tostring(root_element, encoding='unicode', method='xml')
+
+        # Prettify the XML string
+        dom = minidom.parseString(xml_string)
+        pretty_xml_string = dom.toprettyxml()
+
+        # Add the XML file to the ZIP
+        zf.writestr(f"scenario_{i}.xosc", pretty_xml_string)
+
+# Move the pointer to the beginning of the BytesIO buffer
+zip_buffer.seek(0)
 
 # Create a download button
 st.download_button(
-    label="Download OpenSCENARIO file",
-    data=pretty_xml_string,
-    file_name="scenario.xosc",
-    mime="application/xml"
+    label="Download OpenSCENARIO files",
+    data=zip_buffer,
+    file_name="scenarios.zip",
+    mime="application/zip"
 )
 
-st.write("Click the button above to download the OpenSCENARIO file.")
+st.write("Click the button above to download the OpenSCENARIO files.")
